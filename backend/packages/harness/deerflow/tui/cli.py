@@ -273,9 +273,14 @@ def _silence_closed_stdout() -> None:
     the descriptor is pointed somewhere harmless first.
     """
     try:
+        stdout_fd = sys.stdout.fileno()
         devnull = os.open(os.devnull, os.O_WRONLY)
-        os.dup2(devnull, sys.stdout.fileno())
-    except (OSError, ValueError):
+        try:
+            os.dup2(devnull, stdout_fd)
+        finally:
+            if devnull != stdout_fd:
+                os.close(devnull)
+    except (AttributeError, OSError, ValueError):
         pass
 
 
@@ -292,7 +297,7 @@ def _run_print(plan: LaunchPlan) -> int:
         print(f"Error: {_error_text(exc)}", file=sys.stderr)
         return 1
     try:
-        print(answer)
+        print(answer, flush=True)
     except BrokenPipeError:
         _silence_closed_stdout()
         return 1
