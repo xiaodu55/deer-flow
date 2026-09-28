@@ -191,11 +191,34 @@ class _BrokenStdout:
         raise OSError  # forces the devnull dup2 to take its best-effort path
 
 
+class _BufferedStdoutClosedOnFlush:
+    """A short piped answer can be buffered until Python shuts down."""
+
+    def isatty(self):
+        return False
+
+    def write(self, _text):
+        pass
+
+    def flush(self):
+        raise BrokenPipeError
+
+    def fileno(self):
+        raise OSError
+
+
 def test_main_print_broken_pipe_exits_without_traceback(monkeypatch):
     monkeypatch.setattr(cli, "_make_session", _FakeSession)
     monkeypatch.setattr(cli.sys, "stdout", _BrokenStdout())
     rc = cli.main(["--print", "hello"])
     assert rc == 1
+
+
+def test_main_print_flushes_buffered_answer_before_success(monkeypatch):
+    monkeypatch.setattr(cli, "_make_session", _FakeSession)
+    monkeypatch.setattr(cli.sys, "stdout", _BufferedStdoutClosedOnFlush())
+
+    assert cli.main(["--print", "hello"]) == 1
 
 
 def test_main_json_broken_pipe_error_record_fails_silently(monkeypatch):
